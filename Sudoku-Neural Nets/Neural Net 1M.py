@@ -31,7 +31,7 @@ def load_data(n=1000000):
     Xtest, ytest (np.array, np.array), 
         shapes (0.2*n, 9, 9), (0.2*n, 9, 9): Testing samples
     """
-    sudokus = pd.read_csv('../[Data] Sudoku-Solver/sudoku.csv').sample(n).reset_index(drop=True).values
+    sudokus = pd.read_csv('../../[Data] Sudoku/sudoku.csv').sample(n).reset_index(drop=True).values
         
     quizzes, solutions = sudokus.T
     flatX = np.array([np.reshape([int(d) for d in flatten_grid], (9, 9))
