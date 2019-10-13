@@ -6,15 +6,23 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.layers import Dense, Dropout, Flatten, Input
 from keras.utils import to_categorical
 
-from win10toast import ToastNotifier
+import smtplib, ssl
 
-toaster = ToastNotifier()
+smtp_server = "smtp.gmail.com"
+port = 587
+with open('E:/API-Credentials/Gmail.txt') as f:
+    data = list(map(lambda x: x.strip(), f.read()))
+    sender_email = data[0]
+    receiver_email = data[0]
+    password = data[1]
+context = ssl.create_default_context()
+try:
+    server = smtplib.SMTP(smtp_server,port)
+    server.starttls(context=context) # Secure the connection
+    server.login(sender_email, password)
+except Exception as e:
+    print(e)
 
-def notification(title, message, duration=5, icon=None):
-    if icon:
-        toaster.show_toast(title, message, duration=duration, threaded=True, icon_path=icon)
-    else:
-        toaster.show_toast(title, message, duration=duration, threaded=True)
 
 def load_data(n=1000000):
     """
@@ -144,7 +152,7 @@ solver.compile(
     metrics=['accuracy']
 )
 print('Model Compiled')
-ckpt = ModelCheckpoint('Sudoku1M.h5', monitor='loss', verbose=1, save_best_only=True, mode='min')
+ckpt = ModelCheckpoint('Sudoku1M.h5', monitor='loss', verbose=1, save_best_only=False, mode='auto')
 model.summary()
 
 solver.fit(
@@ -155,7 +163,10 @@ solver.fit(
     epochs=1,  # 1 epoch should be enough for the task
     callbacks=[ckpt]
 )
-notification('Model Trained', '0')
+try:
+    server.sendmail(sender_email, receiver_email, 'Model Trained: 0')
+except Exception as e:
+    print(e)
 
 early_stop = EarlyStopping(patience=2, verbose=1)
 
@@ -178,7 +189,10 @@ for nb_epochs, nb_delete in zip(
         verbose=0,
         callbacks=[early_stop, ckpt]
     )
-    notification('Model Trained', f'{nb_delete}')
+    try:
+        server.sendmail(sender_email, receiver_email, 'Model Trained: {nb_delete}')
+    except Exception as e:
+        print(e)
 
 quizzes = Xtest.argmax(3)  # quizzes in the (?, 9, 9) shape. From the test set
 true_grids = ytest.argmax(3) + 1  # true solutions dont forget to add 1 
@@ -198,3 +212,6 @@ deltas.shape[0], (deltas==0).sum(), accuracy
 )
 
 solver.save('Sudoku1M.h5')
+
+finally:
+    server.quit() 
