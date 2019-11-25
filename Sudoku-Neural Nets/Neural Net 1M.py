@@ -6,24 +6,6 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.layers import Dense, Dropout, Flatten, Input
 from keras.utils import to_categorical
 
-import smtplib, ssl
-
-smtp_server = "smtp.gmail.com"
-port = 587
-with open('E:/API-Credentials/Gmail.txt') as f:
-    data = list(map(lambda x: x.strip(), f.read()))
-    sender_email = data[0]
-    receiver_email = data[0]
-    password = data[1]
-context = ssl.create_default_context()
-try:
-    server = smtplib.SMTP(smtp_server,port)
-    server.starttls(context=context) # Secure the connection
-    server.login(sender_email, password)
-except Exception as e:
-    print(e)
-
-
 def load_data(n=1000000):
     """
     Function to load data in the keras way.
@@ -163,10 +145,8 @@ solver.fit(
     epochs=1,  # 1 epoch should be enough for the task
     callbacks=[ckpt]
 )
-try:
-    server.sendmail(sender_email, receiver_email, 'Model Trained: 0')
-except Exception as e:
-    print(e)
+with open('log.txt', 'a')as f:
+    f.write('Trained :0\n')
 
 early_stop = EarlyStopping(patience=2, verbose=1)
 
@@ -189,10 +169,9 @@ for nb_epochs, nb_delete in zip(
         verbose=0,
         callbacks=[early_stop, ckpt]
     )
-    try:
-        server.sendmail(sender_email, receiver_email, 'Model Trained: {nb_delete}')
-    except Exception as e:
-        print(e)
+    with open('log.txt', 'a')as f:
+        f.write(f'Trained :{nb_delete}\n')
+    
 
 quizzes = Xtest.argmax(3)  # quizzes in the (?, 9, 9) shape. From the test set
 true_grids = ytest.argmax(3) + 1  # true solutions dont forget to add 1 
@@ -212,6 +191,3 @@ deltas.shape[0], (deltas==0).sum(), accuracy
 )
 
 solver.save('Sudoku1M.h5')
-
-finally:
-    server.quit() 
