@@ -1,12 +1,41 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
 import numpy as np
 import pandas as pd
 
 from keras import Model, Sequential
-from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.callbacks import EarlyStopping
 from keras.layers import Dense, Dropout, Flatten, Input
 from keras.utils import to_categorical
 
-def load_data(n=1000000):
+
+# In[2]:
+
+
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(name)s : %(message)s')
+
+file_handler = logging.FileHandler('sample.log')
+file_handler.setFormatter(formatter)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
+logger.addHandler(stream_handler)
+
+
+# In[3]:
+
+
+def load_data(batch_num ,batch_size):
     """
     Function to load data in the keras way.
     
@@ -21,15 +50,19 @@ def load_data(n=1000000):
     Xtest, ytest (np.array, np.array), 
         shapes (0.2*n, 9, 9), (0.2*n, 9, 9): Testing samples
     """
-    sudokus = pd.read_csv('../../[Data] Sudoku/sudoku.csv').sample(n).reset_index(drop=True).values
+    sudokus = pd.read_csv('E:/[Data] Sudoku/sudoku.csv', skiprows=batch_num*batch_size, nrows=batch_size).values
         
     quizzes, solutions = sudokus.T
     flatX = np.array([np.reshape([int(d) for d in flatten_grid], (9, 9))
                       for flatten_grid in quizzes])
     flaty = np.array([np.reshape([int(d) for d in flatten_grid], (9, 9))
                       for flatten_grid in solutions])
-    threshold = int(0.8*n)
+    threshold = int(0.8*batch_size)
     return (flatX[:threshold], flaty[:threshold]), (flatX[threshold:], flaty[threshold:])
+
+
+# In[4]:
+
 
 def diff(grids_true, grids_pred):
     """
@@ -46,6 +79,10 @@ def diff(grids_true, grids_pred):
     diff (np.array), shape (?,): Number of differences for each pair (solution, guess)
     """
     return (grids_true != grids_pred).sum((1, 2))
+
+
+# In[5]:
+
 
 def delete_digits(X, n_delet=1):
     """
@@ -65,6 +102,10 @@ def delete_digits(X, n_delet=1):
         grid.flat[np.random.randint(0, 81, n_delet)] = 0  # generate blanks (replace = True)
         
     return to_categorical(grids)
+
+
+# In[6]:
+
 
 def batch_smart_solve(grids, solver):
     """   
@@ -97,19 +138,11 @@ def batch_smart_solve(grids, solver):
                 grid.flat[confidence_position] = confidence_value  # fill digit inplace
     return grids
 
+
+# In[7]:
+
+
 input_shape = (9, 9, 10)
-(_, ytrain), (Xtest, ytest) = load_data()  # We won't use _. We will work directly with ytrain
-print('Data Loaded')
-# one-hot-encoding --> shapes become :
-# (?, 9, 9, 10) for Xs
-# (?, 9, 9, 9) for ys
-Xtrain = to_categorical(ytrain).astype('int32')  # from ytrain cause we will creates quizzes from solusions
-Xtest = to_categorical(Xtest).astype('int32')
-
-ytrain = to_categorical(ytrain-1).astype('int32') # (y - 1) because we 
-ytest = to_categorical(ytest-1).astype('int32')   # don't want to predict zeros
-
-print('Data Transformed')
 
 model = Sequential()
 model.add(Dense(64, activation='relu', input_shape=input_shape))
@@ -134,19 +167,52 @@ solver.compile(
     metrics=['accuracy']
 )
 print('Model Compiled')
-ckpt = ModelCheckpoint('Sudoku1M.h5', monitor='loss', verbose=1, save_best_only=False, mode='auto')
-model.summary()
+early_stop = EarlyStopping(patience=2, verbose=1)
+solver.summary()
 
-solver.fit(
-    delete_digits(Xtrain, 0),  # we don't delete any digit for now
-    [ytrain[:, i, j, :] for i in range(9) for j in range(9)],  # each digit of solution
-    batch_size=128,
-    verbose=0,
-    epochs=1,  # 1 epoch should be enough for the task
-    callbacks=[ckpt]
-)
-with open('log.txt', 'a')as f:
-    f.write('Trained :0\n')
+
+# In[8]:
+
+
+for idx in range(100):
+    (_, ytrain), (Xtest, ytest) = load_data(idx, 10000)  # We won't use _. We will work directly with ytrain
+
+    # one-hot-encoding --> shapes become :
+    # (?, 9, 9, 10) for Xs
+    # (?, 9, 9, 9) for ys
+    Xtrain = to_categorical(ytrain).astype('int32')  # from ytrain cause we will creates quizzes from solusions
+    Xtest = to_categorical(Xtest).astype('int32')
+
+    ytrain = to_categorical(ytrain-1).astype('int32') # (y - 1) because we 
+    ytest = to_categorical(ytest-1).astype('int32')   # don't want to predict zeros
+
+    logger.info(f'idx: {idx} Data Loaded')
+
+    iteration = 0
+    for nb_epochs, nb_delete in zip(
+            [1, 2, 5, 5, 5, 7, 10, 15, 15, 15, 15, 15, 15, 15, 15, 15, 20, 20, 20, 20],  # epochs for each round
+            [0, 1, 2, 3, 4, 6, 8, 10, 12, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65]  # digit to pull off
+    ):
+        iteration += 1
+
+        solver.fit(
+            delete_digits(Xtrain, nb_delete),  # delete digits from training sample
+            [ytrain[:, i, j, :] for i in range(9) for j in range(9)],
+            validation_data=(
+                delete_digits(Xtrain, nb_delete), # delete same amount of digit from validation sample
+                [ytrain[:, i, j, :] for i in range(9) for j in range(9)]),
+            batch_size=128,
+            epochs=nb_epochs,
+            verbose=1,
+            callbacks=[early_stop]
+        )
+        
+        solver.save('Sudoku1M.h5')
+        logger.info(f'idx: {idx} Pass: {iteration} dlt: {nb_delete}')
+
+
+# In[ ]:
+
 
 early_stop = EarlyStopping(patience=2, verbose=1)
 
@@ -167,11 +233,12 @@ for nb_epochs, nb_delete in zip(
         batch_size=128,
         epochs=nb_epochs,
         verbose=0,
-        callbacks=[early_stop, ckpt]
+        callbacks=[early_stop]
     )
-    with open('log.txt', 'a')as f:
-        f.write(f'Trained :{nb_delete}\n')
-    
+
+
+# In[ ]:
+
 
 quizzes = Xtest.argmax(3)  # quizzes in the (?, 9, 9) shape. From the test set
 true_grids = ytest.argmax(3) + 1  # true solutions dont forget to add 1 
@@ -179,6 +246,10 @@ smart_guesses = batch_smart_solve(quizzes, solver)  # make smart guesses !
 
 deltas = diff(true_grids, smart_guesses)  # get number of errors on each quizz
 accuracy = (deltas == 0).mean()  # portion of correct solved quizzes
+
+
+# In[ ]:
+
 
 print(
 """
@@ -190,4 +261,15 @@ deltas.shape[0], (deltas==0).sum(), accuracy
 )
 )
 
+
+# In[ ]:
+
+
 solver.save('Sudoku1M.h5')
+
+
+# In[ ]:
+
+
+
+
