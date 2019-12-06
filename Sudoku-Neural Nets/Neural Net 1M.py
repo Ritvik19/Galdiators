@@ -11,7 +11,7 @@ from keras import Model, Sequential
 from keras.callbacks import EarlyStopping
 from keras.layers import Dense, Dropout, Flatten, Input
 from keras.utils import to_categorical
-
+from keras.utils.vis_utils import plot_model
 
 # In[2]:
 
@@ -169,8 +169,10 @@ solver.compile(
 print('Model Compiled')
 early_stop = EarlyStopping(patience=2, verbose=1)
 solver.summary()
+plot_model(solver, to_file='model_plot.png', show_shapes=True, show_layer_names=True)
 
-
+import sys
+sys.exit()
 # In[8]:
 
 
