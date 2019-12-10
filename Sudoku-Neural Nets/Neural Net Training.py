@@ -49,22 +49,6 @@ def load_data(batch_num ,batch_size):
     threshold = int(0.8*batch_size)
     return (flatX[:threshold], flaty[:threshold]), (flatX[threshold:], flaty[threshold:])
 
-def diff(grids_true, grids_pred):
-    """
-    This function shows how well predicted quizzes fit to actual solutions.
-    It will store sum of differences for each pair (solution, guess)
-    
-    Parameters
-    ----------
-    grids_true (np.array), shape (?, 9, 9): Real solutions to guess in the digit repesentation
-    grids_pred (np.array), shape (?, 9, 9): Guesses
-    
-    Returns
-    -------
-    diff (np.array), shape (?,): Number of differences for each pair (solution, guess)
-    """
-    return (grids_true != grids_pred).sum((1, 2))
-
 def delete_digits(X, n_delet=1):
     """
     This function is used to create sudoku quizzes from solutions
@@ -83,37 +67,6 @@ def delete_digits(X, n_delet=1):
         grid.flat[np.random.randint(0, 81, n_delet)] = 0  # generate blanks (replace = True)
         
     return to_categorical(grids)
-
-def batch_smart_solve(grids, solver):
-    """   
-    This function solves quizzes in the "smart" way. 
-    It will fill blanks one after the other. Each time a digit is filled, 
-    the new grid will be fed again to the solver to predict the next digit. 
-    Again and again, until there is no more blank
-    
-    Parameters
-    ----------
-    grids (np.array), shape (?, 9, 9): Batch of quizzes to solve (smartly ;))
-    solver (keras.model): The neural net solver
-    
-    Returns
-    -------
-    grids (np.array), shape (?, 9, 9): Smartly solved quizzes.
-    """
-    grids = grids.copy()
-    for _ in range((grids == 0).sum((1, 2)).max()):
-        preds = np.array(solver.predict(to_categorical(grids)))  # get predictions
-        probs = preds.max(2).T  # get highest probability for each 81 digit to predict
-        values = preds.argmax(2).T + 1  # get corresponding values
-        zeros = (grids == 0).reshape((grids.shape[0], 81))  # get blank positions
-
-        for grid, prob, value, zero in zip(grids, probs, values, zeros):
-            if any(zero):  # don't try to fill already completed grid
-                where = np.where(zero)[0]  # focus on blanks only
-                confidence_position = where[prob[zero].argmax()]  # best score FOR A ZERO VALUE (confident blank)
-                confidence_value = value[confidence_position]  # get corresponding value
-                grid.flat[confidence_position] = confidence_value  # fill digit inplace
-    return grids
 
 input_shape = (9, 9, 10)
 
