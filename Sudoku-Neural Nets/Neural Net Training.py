@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(name)s : %(message)s')
 
-file_handler = logging.FileHandler('sample.log')
+file_handler = logging.FileHandler('training.log')
 file_handler.setFormatter(formatter)
 
 stream_handler = logging.StreamHandler()
